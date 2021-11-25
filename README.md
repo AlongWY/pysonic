@@ -8,7 +8,7 @@ We recommend you start with the [documentation].
 ## Installation
 
 ```bash
-pip install sonic
+pip install pysonic-channel
 ```
 
 
