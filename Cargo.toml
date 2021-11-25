@@ -1,5 +1,5 @@
 [package]
-name = "sonic"
+name = "pysonic_channel"
 version = "0.1.0"
 edition = "2021"
 authors = ["ylfeng <ylfeng@ir.hit.edu.cn>"]

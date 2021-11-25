@@ -26,7 +26,7 @@ jobs:
           args: --release --out dist --no-sdist
       - name: Install built wheel - x86_64
         run: |
-          pip install sonic --no-index --find-links dist --force-reinstall
+          pip install pysonic_channel --no-index --find-links dist --force-reinstall
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -57,7 +57,7 @@ jobs:
           args: --release --out dist --no-sdist
       - name: Install built wheel
         run: |
-          pip install sonic --no-index --find-links dist --force-reinstall
+          pip install pysonic_channel --no-index --find-links dist --force-reinstall
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -85,7 +85,7 @@ jobs:
       - name: Install built wheel
         if: matrix.target == 'x86_64'
         run: |
-          pip install sonic --no-index --find-links dist --force-reinstall
+          pip install pysonic_channel --no-index --find-links dist --force-reinstall
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
