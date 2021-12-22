@@ -17,7 +17,7 @@ name = "sonic"
 crate-type = ["cdylib"]
 
 [dependencies]
-sonic-channel = { version = "0.4" }
+sonic-channel = { version = "0.5" }
 pyo3 = { version = "0.13", features = ["default", "extension-module"] }
 
 [features]
