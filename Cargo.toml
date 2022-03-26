@@ -1,6 +1,6 @@
 [package]
 name = "pysonic_channel"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["ylfeng <ylfeng@ir.hit.edu.cn>"]
 description = "Python client for sonic search backend"
@@ -17,8 +17,8 @@ name = "sonic"
 crate-type = ["cdylib"]
 
 [dependencies]
-sonic-channel = { version = "0.5" }
-pyo3 = { version = "0.13", features = ["default", "extension-module"] }
+sonic-channel = { version = "0.6" }
+pyo3 = { version = "0.16", features = ["default", "extension-module"] }
 
 [features]
 default = ["search", "ingest", "control"]
