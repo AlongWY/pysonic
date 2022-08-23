@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use sonic_channel::*;
 
 #[pyclass(name = "SearchChannel")]
+#[pyo3(text_signature = "(self, addr, passwd)")]
 struct PySearchChannel {
     channel: SearchChannel,
 }
@@ -16,70 +17,80 @@ impl PySearchChannel {
         Ok(PySearchChannel { channel })
     }
 
-    fn ping(&self) -> PyResult<bool> {
+    /// Ping server.
+    #[pyo3(text_signature = "(self)")]
+    fn ping(&self) -> PyResult<()> {
         self.channel
             .ping()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn quit(&self) -> PyResult<bool> {
+    /// Stop connection.
+    #[pyo3(text_signature = "(self)")]
+    fn quit(&self) -> PyResult<()> {
         self.channel
             .quit()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn query(&self, collection: &str, bucket: &str, terms: &str) -> PyResult<Vec<String>> {
-        self.channel
-            .query(collection, bucket, terms)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn query_with_limit(
+    /// Query objects in database.
+    #[pyo3(text_signature = "(self, collection, bucket, terms, lang, limit, offset)")]
+    fn query(
         &self,
         collection: &str,
-        bucket: &str,
-        terms: &str,
-        limit: usize,
+        bucket: Option<&str>,
+        terms: String,
+        lang: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
     ) -> PyResult<Vec<String>> {
+        let dest = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+
+        let mut request = QueryRequest {
+            dest,
+            terms,
+            limit,
+            offset,
+            lang: None,
+        };
+
+        if let Some(lang) = lang {
+            request.lang = Lang::from_code(lang);
+        }
+
         self.channel
-            .query_with_limit(collection, bucket, terms, limit)
+            .query(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn query_with_limit_and_offset(
+    /// Suggest auto-completes words.
+    #[pyo3(text_signature = "(self, collection, bucket, word, limit)")]
+    fn suggest(
         &self,
         collection: &str,
-        bucket: &str,
-        terms: &str,
-        limit: usize,
-        offset: usize,
+        bucket: Option<&str>,
+        word: String,
+        limit: Option<usize>,
     ) -> PyResult<Vec<String>> {
+        let dest = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+        let request = SuggestRequest { dest, word, limit };
         self.channel
-            .query_with_limit_and_offset(collection, bucket, terms, limit, offset)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn suggest(&self, collection: &str, bucket: &str, terms: &str) -> PyResult<Vec<String>> {
-        self.channel
-            .suggest(collection, bucket, terms)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn suggest_with_limit(
-        &self,
-        collection: &str,
-        bucket: &str,
-        terms: &str,
-        limit: usize,
-    ) -> PyResult<Vec<String>> {
-        self.channel
-            .suggest_with_limit(collection, bucket, terms, limit)
+            .suggest(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 }
 
 #[cfg(feature = "ingest")]
 #[pyclass(name = "IngestChannel")]
+#[pyo3(text_signature = "(self, addr, passwd)")]
 struct PyIngestChannel {
     channel: IngestChannel,
 }
@@ -93,82 +104,110 @@ impl PyIngestChannel {
         Ok(PyIngestChannel { channel })
     }
 
-    fn ping(&self) -> PyResult<bool> {
+    /// Ping server.
+    #[pyo3(text_signature = "(self)")]
+    fn ping(&self) -> PyResult<()> {
         self.channel
             .ping()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn quit(&self) -> PyResult<bool> {
+    /// Stop connection.
+    #[pyo3(text_signature = "(self)")]
+    fn quit(&self) -> PyResult<()> {
         self.channel
             .quit()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn push(&self, collection: &str, bucket: &str, object: &str, text: &str) -> PyResult<bool> {
-        self.channel
-            .push(collection, bucket, object, text)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn push_with_locale(
+    /// Push search data in the index.
+    #[pyo3(text_signature = "(self, collection, bucket, object, text, lang)")]
+    fn push(
         &self,
         collection: &str,
-        bucket: &str,
+        bucket: Option<&str>,
         object: &str,
         text: &str,
-        local: &str,
-    ) -> PyResult<bool> {
+        lang: Option<&str>,
+    ) -> PyResult<()> {
+        let dest = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+        let obj_dst = ObjDest::new(dest, object);
+        let mut request = PushRequest::new(obj_dst, text);
+        if let Some(lang) = lang {
+            request.lang = Lang::from_code(lang);
+        }
         self.channel
-            .push_with_locale(collection, bucket, object, text, local)
+            .push(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn pop(&self, collection: &str, bucket: &str, object: &str, text: &str) -> PyResult<usize> {
+    /// Pop search data from the index. Returns removed words count as usize type.
+    #[pyo3(text_signature = "(self, collection, bucket, object, text)")]
+    fn pop(
+        &self,
+        collection: &str,
+        bucket: Option<&str>,
+        object: &str,
+        text: &str,
+    ) -> PyResult<usize> {
+        let dist = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+        let obj_dst = ObjDest::new(dist, object);
+        let request = PopRequest::new(obj_dst, text);
         self.channel
-            .pop(collection, bucket, object, text)
+            .pop(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn bucket_count(&self, collection: &str) -> PyResult<usize> {
+    /// Count indexed search data of your collection.
+    #[pyo3(text_signature = "(self, collection, bucket, object)")]
+    fn count(
+        &self,
+        collection: &str,
+        bucket: Option<&str>,
+        object: Option<&str>,
+    ) -> PyResult<usize> {
+        let request = match (bucket, object) {
+            (Some(bucket), Some(object)) => CountRequest::words(collection, bucket, object),
+            (Some(bucket), None) => CountRequest::objects(collection, bucket),
+            _ => CountRequest::buckets(collection),
+        };
+
         self.channel
-            .bucket_count(collection)
+            .count(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn object_count(&self, collection: &str, bucket: &str) -> PyResult<usize> {
-        self.channel
-            .object_count(collection, bucket)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
+    /// Flush all indexed data from collections.
+    #[pyo3(text_signature = "(self, collection, bucket, object)")]
+    fn flush(
+        &self,
+        collection: &str,
+        bucket: Option<&str>,
+        object: Option<&str>,
+    ) -> PyResult<usize> {
+        let request = match (bucket, object) {
+            (Some(bucket), Some(object)) => FlushRequest::object(collection, bucket, object),
+            (Some(bucket), None) => FlushRequest::bucket(collection, bucket),
+            _ => FlushRequest::collection(collection),
+        };
 
-    fn word_count(&self, collection: &str, bucket: &str, object: &str) -> PyResult<usize> {
         self.channel
-            .word_count(collection, bucket, object)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn flushc(&self, collection: &str) -> PyResult<usize> {
-        self.channel
-            .flushc(collection)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn flushb(&self, collection: &str, bucket: &str) -> PyResult<usize> {
-        self.channel
-            .flushb(collection, bucket)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    fn flusho(&self, collection: &str, bucket: &str, object: &str) -> PyResult<usize> {
-        self.channel
-            .flusho(collection, bucket, object)
+            .flush(request)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 }
 
 #[cfg(feature = "control")]
 #[pyclass(name = "ControlChannel")]
+#[pyo3(text_signature = "(self, addr, passwd)")]
 struct PyControlChannel {
     channel: ControlChannel,
 }
@@ -182,31 +221,41 @@ impl PyControlChannel {
         Ok(PyControlChannel { channel })
     }
 
-    fn ping(&self) -> PyResult<bool> {
+    /// Ping server.
+    #[pyo3(text_signature = "(self)")]
+    fn ping(&self) -> PyResult<()> {
         self.channel
             .ping()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn quit(&self) -> PyResult<bool> {
+    /// Stop connection.
+    #[pyo3(text_signature = "(self)")]
+    fn quit(&self) -> PyResult<()> {
         self.channel
             .quit()
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn backup(&self, action: &str) -> PyResult<bool> {
+    /// Backup KV + FST to /<BACKUP_{KV/FST}_PATH> See [sonic backend source code](https://github.com/valeriansaliou/sonic/blob/master/src/channel/command.rs#L808) for more information.
+    #[pyo3(text_signature = "(self, action)")]
+    fn backup(&self, action: &str) -> PyResult<()> {
         self.channel
             .backup(action)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn restore(&self, action: &str) -> PyResult<bool> {
+    /// Restore KV + FST from if you already have backup with the same name.
+    #[pyo3(text_signature = "(self, action)")]
+    fn restore(&self, action: &str) -> PyResult<()> {
         self.channel
             .restore(action)
             .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
-    fn consolidate(&self) -> PyResult<bool> {
+    /// Consolidate indexed search data instead of waiting for the next automated consolidation tick.
+    #[pyo3(text_signature = "(self)")]
+    fn consolidate(&self) -> PyResult<()> {
         self.channel
             .consolidate()
             .map_err(|e| PyOSError::new_err(e.to_string()))
