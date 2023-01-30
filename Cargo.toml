@@ -21,7 +21,8 @@ sonic-channel = { version = "1.0" }
 pyo3 = { version = "0.17", features = ["default", "extension-module"] }
 
 [features]
-default = ["search", "ingest", "control"]
+default = ["search", "ingest", "control", "abi3"]
 search = ["sonic-channel/search"]
 ingest = ["sonic-channel/ingest"]
 control = ["sonic-channel/control"]
+abi3 = ["pyo3/abi3-py37"]
