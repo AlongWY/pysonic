@@ -13,6 +13,7 @@ concurrency:
 
 env:
   PACKAGE_NAME: pysonic_channel
+  PACKAGE_IMPORT: sonic
   PYTHON_VERSION: "3.7" # to build abi3 wheels
 
 jobs:
@@ -49,7 +50,7 @@ jobs:
       - name: Install built wheel - x86_64
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
-          python3 -c "import ${{ env.PACKAGE_NAME }}"
+          python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Build wheels - universal2
         uses: messense/maturin-action@v1
         with:
@@ -58,7 +59,7 @@ jobs:
       - name: Install built wheel - universal2
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*universal2.whl --force-reinstall
-          python3 -c "import ${{ env.PACKAGE_NAME }}"
+          python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -102,7 +103,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
-          python3 -c "import ${{ env.PACKAGE_NAME }}"
+          python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -147,7 +148,7 @@ jobs:
         if: matrix.target == 'x86_64'
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
-          python3 -c "import ${{ env.PACKAGE_NAME }}"
+          python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -200,7 +201,7 @@ jobs:
             pip3 install -U pip
           run: |
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
-            python3 -c "import ${{ env.PACKAGE_NAME }}"
+            python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -253,7 +254,7 @@ jobs:
             apk add py3-pip
             pip3 install -U pip
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links /io/dist/ --force-reinstall
-            python3 -c "import ${{ env.PACKAGE_NAME }}"
+            python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -308,7 +309,7 @@ jobs:
             pip3 install -U pip
           run: |
             pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
-            python3 -c "import ${{ env.PACKAGE_NAME }}"
+            python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
@@ -360,7 +361,7 @@ jobs:
         if: matrix.target == 'x86_64'
         run: |
           pip install dist/${{ env.PACKAGE_NAME }}-*.whl --force-reinstall
-          python3 -c "import ${{ env.PACKAGE_NAME }}"
+          python3 -c "import ${{ env.PACKAGE_IMPORT }}"
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
