@@ -1,4 +1,5 @@
 use pyo3::exceptions::PyOSError;
+use pyo3::types::{PyTuple, PyDict};
 use pyo3::prelude::*;
 use sonic_channel::*;
 
@@ -8,34 +9,9 @@ struct PySearchChannel {
     channel: SearchChannel,
 }
 
-#[pymethods]
 impl PySearchChannel {
-    #[new]
-    fn new(addr: &str, password: &str) -> PyResult<Self> {
-        let channel =
-            SearchChannel::start(addr, password).map_err(|e| PyOSError::new_err(e.to_string()))?;
-        Ok(PySearchChannel { channel })
-    }
-
-    /// Ping server.
-    #[pyo3(text_signature = "(self)")]
-    fn ping(&self) -> PyResult<()> {
-        self.channel
-            .ping()
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
-    /// Stop connection.
-    #[pyo3(text_signature = "(self)")]
-    fn quit(&self) -> PyResult<()> {
-        self.channel
-            .quit()
-            .map_err(|e| PyOSError::new_err(e.to_string()))
-    }
-
     /// Query objects in database.
-    #[pyo3(text_signature = "(self, collection, bucket, terms, lang, limit, offset)")]
-    fn query(
+    fn query_impl(
         &self,
         collection: &str,
         bucket: Option<&str>,
@@ -68,8 +44,7 @@ impl PySearchChannel {
     }
 
     /// Suggest auto-completes words.
-    #[pyo3(text_signature = "(self, collection, bucket, word, limit)")]
-    fn suggest(
+    fn suggest_impl(
         &self,
         collection: &str,
         bucket: Option<&str>,
@@ -88,11 +63,167 @@ impl PySearchChannel {
     }
 }
 
+#[pymethods]
+impl PySearchChannel {
+    #[new]
+    fn new(addr: &str, password: &str) -> PyResult<Self> {
+        let channel =
+            SearchChannel::start(addr, password).map_err(|e| PyOSError::new_err(e.to_string()))?;
+        Ok(PySearchChannel { channel })
+    }
+
+    /// Ping server.
+    #[pyo3(text_signature = "(self)")]
+    fn ping(&self) -> PyResult<()> {
+        self.channel
+            .ping()
+            .map_err(|e| PyOSError::new_err(e.to_string()))
+    }
+
+    /// Stop connection.
+    #[pyo3(text_signature = "(self)")]
+    fn quit(&self) -> PyResult<()> {
+        self.channel
+            .quit()
+            .map_err(|e| PyOSError::new_err(e.to_string()))
+    }
+
+    /// Query objects in database.
+    /// The function can be called in two ways:
+    ///     `query(self, collection, bucket, terms, lang=None, limit=None, offset=None)`
+    ///     `query(self, collection, terms, lang=None, limit=None, offset=None)`
+    /// where `bucket` is optional.
+    #[pyo3(text_signature = "(self, collection, *args, lang=None, limit=None, offset=None, **kwargs)")]
+    fn query(
+        &self,
+        collection: &str,
+        args: &PyTuple,
+        lang: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+        kwargs: Option<&PyDict>,
+    ) -> PyResult<Vec<String>> {
+        let bucket = kwargs.and_then(|d| d.get_item("bucket"));
+        let terms = kwargs.and_then(|d| d.get_item("terms"));
+
+        match (bucket, terms, args.len()) {
+            (Some(bucket), Some(terms), 0) => {
+                let bucket = bucket.extract()?;
+                let terms = terms.extract()?;
+                self.query_impl(collection, Some(bucket), terms, lang, limit, offset)
+            }
+            (None, Some(terms), 0) => {
+                let bucket = None;
+                let terms = terms.extract()?;
+                self.query_impl(collection, bucket, terms, lang, limit, offset)
+            }
+            (None, None, 1) => {
+                let bucket = None;
+                let terms = args.get_item(0)?.extract()?;
+                self.query_impl(collection, bucket, terms, lang, limit, offset)
+            }
+            (Some(bucket), None, 1) => {
+                let bucket = bucket.extract()?;
+                let terms = args.get_item(0)?.extract()?;
+                self.query_impl(collection, Some(bucket), terms, lang, limit, offset)
+            }
+            _ => Err(PyOSError::new_err("Invalid arguments"))
+        }
+    }
+
+    /// Suggest auto-completes words.
+    /// The function can be called in two ways:
+    ///     `suggest(self, collection, bucket, word, limit=None)`
+    ///     `suggest(self, collection, word, limit=None)`
+    /// where `bucket` is optional.
+    #[pyo3(text_signature = "(self, collection, *args, limit=None, **kwargs)")]
+    fn suggest(
+        &self,
+        collection: &str,
+        args: &PyTuple,
+        limit: Option<usize>,
+        kwargs: Option<&PyDict>,
+    ) -> PyResult<Vec<String>> {
+        let bucket = kwargs.and_then(|d| d.get_item("bucket"));
+        let word = kwargs.and_then(|d| d.get_item("word"));
+
+        match (bucket, word, args.len()) {
+            (Some(bucket), Some(word), 0) => {
+                let bucket = bucket.extract()?;
+                let word = word.extract()?;
+                self.suggest_impl(collection, Some(bucket), word, limit)
+            }
+            (None, Some(word), 0) => {
+                let bucket = None;
+                let word = word.extract()?;
+                self.suggest_impl(collection, bucket, word, limit)
+            }
+            (None, None, 1) => {
+                let bucket = None;
+                let word = args.get_item(0)?.extract()?;
+                self.suggest_impl(collection, bucket, word, limit)
+            }
+            (Some(bucket), None, 1) => {
+                let bucket = bucket.extract()?;
+                let word = args.get_item(0)?.extract()?;
+                self.suggest_impl(collection, Some(bucket), word, limit)
+            }
+            _ => Err(PyOSError::new_err("Invalid arguments"))
+        }
+    }
+}
+
 #[cfg(feature = "ingest")]
 #[pyclass(name = "IngestChannel")]
 #[pyo3(text_signature = "(self, addr, passwd)")]
 struct PyIngestChannel {
     channel: IngestChannel,
+}
+
+impl PyIngestChannel {
+    /// Push search data in the index.
+    fn push_impl(
+        &self,
+        collection: &str,
+        bucket: Option<&str>,
+        object: &str,
+        text: &str,
+        lang: Option<&str>,
+    ) -> PyResult<()> {
+        let dest = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+        let obj_dst = ObjDest::new(dest, object);
+        let mut request = PushRequest::new(obj_dst, text);
+        if let Some(lang) = lang {
+            request.lang = Lang::from_code(lang);
+        }
+        self.channel
+            .push(request)
+            .map_err(|e| PyOSError::new_err(e.to_string()))
+    }
+
+    /// Pop search data from the index. Returns removed words count as usize type.
+    fn pop_impl(
+        &self,
+        collection: &str,
+        bucket: Option<&str>,
+        object: &str,
+        text: &str,
+    ) -> PyResult<usize> {
+        let dist = if let Some(bucket) = bucket {
+            Dest::col_buc(collection, bucket)
+        } else {
+            Dest::col(collection)
+        };
+        let obj_dst = ObjDest::new(dist, object);
+        let request = PopRequest::new(obj_dst, text);
+        self.channel
+            .pop(request)
+            .map_err(|e| PyOSError::new_err(e.to_string()))
+    }
 }
 
 #[pymethods]
@@ -121,53 +252,98 @@ impl PyIngestChannel {
     }
 
     /// Push search data in the index.
-    #[pyo3(text_signature = "(self, collection, bucket, object, text, lang)")]
+    /// The function can be called in two ways:
+    ///     `push(self, collection, bucket, object, text, lang=None)`
+    ///     `push(self, collection, object, text, lang=None)`
+    /// where `bucket` is optional.
+    #[pyo3(text_signature = "(self, collection, *args, lang=None, **kwargs)")]
     fn push(
         &self,
         collection: &str,
-        bucket: Option<&str>,
-        object: &str,
-        text: &str,
+        args: &PyTuple,
         lang: Option<&str>,
+        kwargs: Option<&PyDict>,
     ) -> PyResult<()> {
-        let dest = if let Some(bucket) = bucket {
-            Dest::col_buc(collection, bucket)
-        } else {
-            Dest::col(collection)
-        };
-        let obj_dst = ObjDest::new(dest, object);
-        let mut request = PushRequest::new(obj_dst, text);
-        if let Some(lang) = lang {
-            request.lang = Lang::from_code(lang);
+        let bucket = kwargs.and_then(|d| d.get_item("bucket"));
+        let object = kwargs.and_then(|d| d.get_item("object"));
+        let text = kwargs.and_then(|d| d.get_item("text"));
+
+        match (bucket, object, text, args.len()) {
+            (Some(bucket), Some(object), Some(text), 0) => {
+                let bucket = bucket.extract()?;
+                let object = object.extract()?;
+                let text = text.extract()?;
+                self.push_impl(collection, Some(bucket), object, text, lang)
+            }
+            (None, Some(object), Some(text), 0) => {
+                let bucket = None;
+                let object = object.extract()?;
+                let text = text.extract()?;
+                self.push_impl(collection, bucket, object, text, lang)
+            }
+            (None, None, Some(text), 1) => {
+                let bucket = None;
+                let object = args.get_item(0)?.extract()?;
+                let text = text.extract()?;
+                self.push_impl(collection, bucket, object, text, lang)
+            }
+            (Some(bucket), None, Some(text), 1) => {
+                let bucket = bucket.extract()?;
+                let object = args.get_item(0)?.extract()?;
+                let text = text.extract()?;
+                self.push_impl(collection, Some(bucket), object, text, lang)
+            }
+            _ => Err(PyOSError::new_err("Invalid arguments"))
         }
-        self.channel
-            .push(request)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
     }
 
     /// Pop search data from the index. Returns removed words count as usize type.
-    #[pyo3(text_signature = "(self, collection, bucket, object, text)")]
+    /// The function can be called in two ways:
+    ///     `pop(self, collection, bucket, object, text)`
+    ///     `pop(self, collection, object, text)`
+    /// where `bucket` is optional.
+    #[pyo3(text_signature = "(self, collection, *args, **kwargs)")]
     fn pop(
         &self,
         collection: &str,
-        bucket: Option<&str>,
-        object: &str,
-        text: &str,
+        args: &PyTuple,
+        kwargs: Option<&PyDict>,
     ) -> PyResult<usize> {
-        let dist = if let Some(bucket) = bucket {
-            Dest::col_buc(collection, bucket)
-        } else {
-            Dest::col(collection)
-        };
-        let obj_dst = ObjDest::new(dist, object);
-        let request = PopRequest::new(obj_dst, text);
-        self.channel
-            .pop(request)
-            .map_err(|e| PyOSError::new_err(e.to_string()))
+        let bucket = kwargs.and_then(|d| d.get_item("bucket"));
+        let object = kwargs.and_then(|d| d.get_item("object"));
+        let text = kwargs.and_then(|d| d.get_item("text"));
+
+        match (bucket, object, text, args.len()) {
+            (Some(bucket), Some(object), Some(text), 0) => {
+                let bucket = bucket.extract()?;
+                let object = object.extract()?;
+                let text = text.extract()?;
+                self.pop_impl(collection, Some(bucket), object, text)
+            }
+            (None, Some(object), Some(text), 0) => {
+                let bucket = None;
+                let object = object.extract()?;
+                let text = text.extract()?;
+                self.pop_impl(collection, bucket, object, text)
+            }
+            (None, None, None, 2) => {
+                let bucket = None;
+                let object = args.get_item(0)?.extract()?;
+                let text = args.get_item(1)?.extract()?;
+                self.pop_impl(collection, bucket, object, text)
+            }
+            (Some(bucket), None, None, 2) => {
+                let bucket = bucket.extract()?;
+                let object = args.get_item(0)?.extract()?;
+                let text = args.get_item(1)?.extract()?;
+                self.pop_impl(collection, Some(bucket), object, text)
+            }
+            _ => Err(PyOSError::new_err("Invalid arguments"))
+        }
     }
 
     /// Count indexed search data of your collection.
-    #[pyo3(text_signature = "(self, collection, bucket, object)")]
+    #[pyo3(text_signature = "(self, collection, bucket=None, object=None)")]
     fn count(
         &self,
         collection: &str,
@@ -186,7 +362,7 @@ impl PyIngestChannel {
     }
 
     /// Flush all indexed data from collections.
-    #[pyo3(text_signature = "(self, collection, bucket, object)")]
+    #[pyo3(text_signature = "(self, collection, bucket=None, object=None)")]
     fn flush(
         &self,
         collection: &str,

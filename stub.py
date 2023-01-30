@@ -114,11 +114,14 @@ def pyi_file(obj, indent=""):
     return string
 
 
-def py_file(module, origin):
+def py_file(module, origin, top_level=False):
     members = get_module_members(module, with_module=True)
 
     string = GENERATED_COMMENT
-    string += f"from .. import {origin}\n"
+    if top_level:
+        string += f"from . import {origin}\n"
+    else:
+        string += f"from .. import {origin}\n"
     string += "\n"
     for member in members:
         name = member.__name__
@@ -140,7 +143,7 @@ def do_black(content, is_pyi):
         return content
 
 
-def write(module, directory, origin, check=False):
+def write(module, directory, origin, check=False, top_level=False):
     submodules = [
         (name, member) for name, member in inspect.getmembers(module) if inspect.ismodule(member)
     ]
@@ -153,14 +156,14 @@ def write(module, directory, origin, check=False):
         with open(filename) as f:
             data = f.read()
             assert (
-                data == pyi_content
+                    data == pyi_content
             ), f"The content of {filename} seems outdated, please run `python stub.py`"
     else:
         with open(filename, "w") as f:
             f.write(pyi_content)
 
     filename = os.path.join(directory, "__init__.py")
-    py_content = py_file(module, origin)
+    py_content = py_file(module, origin, top_level)
     py_content = do_black(py_content, is_pyi=False)
     os.makedirs(directory, exist_ok=True)
 
@@ -178,7 +181,7 @@ def write(module, directory, origin, check=False):
             with open(filename) as f:
                 data = f.read()
                 assert (
-                    data == py_content
+                        data == py_content
                 ), f"The content of {filename} seems outdated, please run `python stub.py`"
         else:
             with open(filename, "w") as f:
@@ -195,4 +198,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     import sonic
 
-    write(sonic.sonic, "sonic", "sonic", check=args.check)
+    write(sonic.sonic, "python/sonic", "sonic", check=args.check, top_level=True)

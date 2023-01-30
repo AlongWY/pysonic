@@ -31,12 +31,12 @@ class ControlChannel:
 class IngestChannel:
     def __init__(self, addr, passwd):
         pass
-    def count(self, collection, bucket, object):
+    def count(self, collection, bucket=None, object=None):
         """
         Count indexed search data of your collection.
         """
         pass
-    def flush(self, collection, bucket, object):
+    def flush(self, collection, bucket=None, object=None):
         """
         Flush all indexed data from collections.
         """
@@ -46,14 +46,22 @@ class IngestChannel:
         Ping server.
         """
         pass
-    def pop(self, collection, bucket, object, text):
+    def pop(self, collection, *args, **kwargs):
         """
         Pop search data from the index. Returns removed words count as usize type.
+        The function can be called in two ways:
+            `pop(self, collection, bucket, object, text)`
+            `pop(self, collection, object, text)`
+        where `bucket` is optional.
         """
         pass
-    def push(self, collection, bucket, object, text, lang):
+    def push(self, collection, *args, lang=None, **kwargs):
         """
         Push search data in the index.
+        The function can be called in two ways:
+            `push(self, collection, bucket, object, text, lang=None)`
+            `push(self, collection, object, text, lang=None)`
+        where `bucket` is optional.
         """
         pass
     def quit(self):
@@ -70,9 +78,13 @@ class SearchChannel:
         Ping server.
         """
         pass
-    def query(self, collection, bucket, terms, lang, limit, offset):
+    def query(self, collection, *args, lang=None, limit=None, offset=None, **kwargs):
         """
         Query objects in database.
+        The function can be called in two ways:
+            `query(self, collection, bucket, terms, lang=None, limit=None, offset=None)`
+            `query(self, collection, terms, lang=None, limit=None, offset=None)`
+        where `bucket` is optional.
         """
         pass
     def quit(self):
@@ -80,8 +92,12 @@ class SearchChannel:
         Stop connection.
         """
         pass
-    def suggest(self, collection, bucket, word, limit):
+    def suggest(self, collection, *args, limit=None, **kwargs):
         """
         Suggest auto-completes words.
+        The function can be called in two ways:
+            `suggest(self, collection, bucket, word, limit=None)`
+            `suggest(self, collection, word, limit=None)`
+        where `bucket` is optional.
         """
         pass
